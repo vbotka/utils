@@ -1,0 +1,17 @@
+#!/bin/bash
+
+VERSION="0.1"
+USAGE="$(basename "$0") file -- stamp the file with current date"
+
+EXPECTED_ARGS=1
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+NAME=`date +%F`
+NAME+="-"
+NAME+=$1
+mv $1 $NAME
+
+exit 0
