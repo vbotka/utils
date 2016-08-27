@@ -1,0 +1,40 @@
+#!/bin/bash
+#
+# configuration goes here:
+SLEEP="120"  # seconds
+S2RAM="true" # true == suspend to RAM, false == suspend to disk
+# configuration ends here.
+
+# determine if the hardware clock is running on UTC or local time...
+grep -q ^UTC /etc/adjtime && UTC="--utc"
+# cycle counter
+declare -i COUNT
+COUNT=0
+while true; do
+    let COUNT++
+    if [ -e /proc/acpi/alarm ]; then
+        date $UTC "+%F %T" -d "now + ${SLEEP}seconds" > /proc/acpi/alarm
+        echo "`date`: try #${COUNT}, wakeup time set to `cat /proc/acpi/alarm`"
+    else
+        cd /sys/class/rtc/rtc0
+        read NOW < since_epoch; echo $(( $NOW + $SLEEP )) > wakealarm
+        echo "`date`: try #${COUNT}"
+    fi
+    # powersave command returns immediately. We sleep for some time here.
+    # since suspend / resume takes longer than that, the sleep will end
+    # immediately after resume. Since preparing suspend to disk takes
+    # a bit longer, also the sleep is a bit longer...
+    if $S2RAM; then
+        powersave -u
+        sleep 10s
+    else
+        powersave -U
+        sleep 1m
+    fi
+    # the system clock will lose time in the order of a second per
+    # suspend, so make sure that it is reset to the known good time
+    # source of the hardware clock.
+    hwclock --hctosys
+    echo "`date`: returned from suspend, retrying in 10 seconds..."
+    sleep 10
+done

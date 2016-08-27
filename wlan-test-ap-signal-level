@@ -1,0 +1,18 @@
+#!/bin/bash
+# 
+
+VERSION="0.1"
+USAGE="$(basename "$0") interface ssid]"
+
+EXPECTED_ARGS=2
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+
+# TODO: some drivers report all ssid, not only the scanned one
+while [ 1 ] 
+do
+  iw dev $1 scan ssid $2 | grep signal
+done

@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+ALERT="/usr/share/sounds/purple/alert.wav"
+SLEEP="2"
+
+WLAN=wlan3
+AP=192.168.102.20
+
+paplay $ALERT
+while [ 1 ]; do
+
+      sleep $SLEEP
+      date +%H:%M:%S
+      ping -c 1 -W 3 $AP
+      status1=$?
+      echo "status1: $status1"
+
+      sleep $SLEEP
+      date +%H:%M:%S
+      ping -c 1 -W 3 $AP
+      status2=$?
+      echo "status2: $status2"
+
+      if [ $status1 == "1" -a $status2 == "1" ]; then
+	  echo "line is down"
+	  paplay $ALERT
+	  exit 1
+      fi
+
+done

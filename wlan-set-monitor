@@ -1,0 +1,37 @@
+#!/bin/bash
+
+VERSION="0.1"
+USAGE="$(basename "$0") phy mon channel -- set wlan monitor interface
+where:
+        phy ...... physical interface
+        mon ...... new monitor interface
+        channel .. new monitor interface will be set to this channel"
+
+EXPECTED_ARGS=3
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+
+# TODO: delete interface on phy (iw dev)
+# delete all interfaces
+# iw dev | grep Interface | awk '{ split($0, a, " "); cmd="iw dev " a[2] " del";system(cmd);}'
+
+# add new interface
+iw phy $1 interface add $2 type monitor
+
+# set channel
+iw dev $2 set channel $3
+
+# list settings
+iwconfig $2
+
+#iw dev wlan0 del
+#iw phy phy0 interface add mon0 type monitor
+#iwconfig mon0 channel 5
+#iw dev mon0 info
+#ifconfig mon0 up
+#tcpdump -i mon0 -w test-01 -s 0
+#tcpdump -p -i wlan0 -w dump -s 0 &
+#tcpdump -envfi wlan1

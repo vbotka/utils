@@ -1,0 +1,11 @@
+#!/bin/bash
+
+DIR=`mktemp -d`
+mkdir $DIR/boot
+INSTALL_MOD_PATH=$DIR make modules_install
+ARCH=`file vmlinux |cut -f2 -d,|sed 's/ //g'|sed 's/-/_/'`
+cp arch/$ARCH/boot/bzImage $DIR/boot/vmlinuz_test
+cp vmlinux $DIR/boot/vmlinux.test
+cp System.map $DIR/boot/System.map_test
+cd $DIR
+tar -c *|ssh root@$1 'cd /; tar -x'
