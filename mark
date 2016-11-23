@@ -1,18 +1,9 @@
 #!/bin/bash
 
 VERSION="0.1"
-USAGE="$(basename "$0") -- print red line to separate output."
-
-
-#if [[ $COLORTERM -eq "xfce4-terminal" ]] ; then
-#    LENGTH=`cat ~/.MY_XFCETERM_GEOM | cut -f 1 -d "x"`
-#else
-#    LENGTH=`cat ~/.MY_XTERM_GEOM | cut -f 1 -d "x"`
-#fi
-#printf "$LENGTH\n"
+# Print red line"
 
 COLUMNS=$(tput cols)
-#printf "$COLUMNS\n"
 
 printf "\e[0;31m"
 printf "%${COLUMNS}s" | tr " " "*"
