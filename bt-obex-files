@@ -1,0 +1,132 @@
+#!/bin/bash
+#set -x
+
+getopt --test > /dev/null
+if [[ $? -ne 4 ]]; then
+    echo "$0: I’m sorry, `getopt --test` failed in this environment."
+    exit 1
+fi
+
+USAGE="$(basename "$0") [-v|--verbose] [-d|--debug]
+              [-l]--list] [-g|--get] [-k|--delete]
+              [-c|--hci HCIX] [-f|--folder FOLDER] <bluetooth address>
+              -- list files in a folder
+
+where:
+    -v --verbose ........ Verbose
+    -d --debug .......... Debug
+    -l --list ........... List all files in a folder (default if no get/delete)
+    -g --get ............ Get all files from a folder
+    -k --delete ......... Delete all files in a folder
+    -c --hci ............ Bluetooth controller (default hci0)
+    -f --folder ......... Folder (default extStorages/SdCard/DCIM/Camera)
+    <bluetooth address>   Bluetooth address of a device
+
+example:
+    bt-obex-files -lgk -f \$FOLDER -c \$OBEXHCI \$MYPHONE
+    List, get and delete files from folder \$FOLDER in device \$MYPHONE
+    connected by \$OBEXHCI."
+
+EXPECTED_ARGS=1
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+BOF_OBEXFTPLOG=/dev/null
+BOF_XMLSTARTLETLOG=/dev/null
+BOF_OBEXTIMEOUT=3
+
+OPTIONS=c:f:vdlgk
+LONGOPTIONS=hci:,folder:,verbose,debug,list,get,delete
+
+# -temporarily store output to be able to check for errors
+# -activate advanced mode getopt quoting e.g. via “--options”
+# -pass arguments only via   -- "$@"   to separate them correctly
+PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
+if [[ $? -ne 0 ]]; then
+    # e.g. $? == 1
+    # then getopt has complained about wrong arguments to stdout
+    exit 2
+fi
+# use eval with "$PARSED" to properly handle the quoting
+eval set -- "$PARSED"
+
+# now enjoy the options in order and nicely split until we see --
+BOF_VERBOSE=0
+BOF_DEBUG=0
+BOF_LIST=0
+BOF_GET=0
+BOF_DELETE=0
+while true
+do
+    case "$1" in
+	-v|--verbose)
+	    BOF_VERBOSE=1
+	    shift
+	    ;;
+	-d|--debug)
+	    BOF_DEBUG=1
+	    shift
+	    ;;
+	-l|--list)
+	    BOF_LIST=1
+	    shift
+	    ;;
+	-g|--get)
+	    BOF_GET=1
+	    shift
+	    ;;
+	-k|--delete)
+	    BOF_DELETE=1
+	    shift
+	    ;;
+	-f|--folder)
+	    BOF_FOLDER="$2"
+	    shift 2
+	    ;;
+	-c|--hci)
+	    BOF_HCIX="$2"
+	    shift 2
+	    ;;
+	--)
+	    shift
+	    break
+	    ;;
+	*)
+	    printf "$0: Programming error\n"
+	    exit 3
+	    ;;
+    esac
+done
+
+if [[ $# -ne 1 ]]; then
+    printf "$0: Bluetooth address of a device is required.\n"
+    exit 4
+fi
+
+BOF_BTADDRESS="$1"
+BOF_FOLDER="${BOF_FOLDER:-extStorages/SdCard/DCIM/Camera}"
+BOF_HCIX="${BOF_HCIX:-hci0}" #OBEXHCI
+((! $BOF_GET)) && ((! $BOF_DELETE)) && BOF_LIST=1
+(($BOF_DEBUG)) && printf " VERBOSE=$BOF_VERBOSE\n DEBUG=$BOF_DEBUG\n LIST=$BOF_LIST\n GET=$BOF_GET\n DELETE=$BOF_DELETE\n HCIX=$BOF_HCIX\n BTADDRESS=$BOF_BTADDRESS\n FOLDER=$BOF_FOLDER\n"
+BOF_CHANNEL=$(sdptool browse $BOF_BTADDRESS | grep -A 20 "OBEX FTP" | grep Channel | cut -f 2 -d ":")
+(($BOF_DEBUG)) && printf " CHANNEL=$BOF_CHANNEL\n"
+((! $BOF_CHANNEL)) && printf "$0: OBEX FTP not available.\n" && exit 5
+
+sleep $BOF_OBEXTIMEOUT
+BOF_XMLIST=$(obexftp -d $BOF_HCIX -b $BOF_BTADDRESS -B $BOF_CHANNEL -C $BOF_FOLDER -l 2>>$BOF_OBEXFTPLOG)
+if [ $? -eq 255 ]; then
+    BOF_FILES=$(echo $BOF_XMLIST | xmlstarlet sel -T -t -m //file/@name -v . -n 2>>$BOF_XMLSTARTLETLOG)
+    
+    for i in $BOF_FILES; do
+	(($BOF_LIST)) && printf "$i\n"
+	(($BOF_GET)) && sleep $BOF_OBEXTIMEOUT && obexftp -d $BOF_HCIX -b $BOF_BTADDRESS -B $BOF_CHANNEL -C $BOF_FOLDER -g $i
+	(($BOF_DELETE)) && sleep $BOF_OBEXTIMEOUT && obexftp -d $BOF_HCIX -b $BOF_BTADDRESS -B $BOF_CHANNEL -C $BOF_FOLDER -k $i
+    done
+else
+    printf "obexftp returned exit code $?\n"
+fi
+
+exit
+# EOF
