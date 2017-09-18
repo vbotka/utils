@@ -110,15 +110,15 @@ BOF_FOLDER="${BOF_FOLDER:-extStorages/SdCard/DCIM/Camera}"
 BOF_HCIX="${BOF_HCIX:-hci0}" #OBEXHCI
 ((! $BOF_GET)) && ((! $BOF_DELETE)) && BOF_LIST=1
 (($BOF_DEBUG)) && printf " VERBOSE=$BOF_VERBOSE\n DEBUG=$BOF_DEBUG\n LIST=$BOF_LIST\n GET=$BOF_GET\n DELETE=$BOF_DELETE\n HCIX=$BOF_HCIX\n BTADDRESS=$BOF_BTADDRESS\n FOLDER=$BOF_FOLDER\n"
-BOF_CHANNEL=$(sdptool browse $BOF_BTADDRESS | grep -A 20 "OBEX FTP" | grep Channel | cut -f 2 -d ":")
+BOF_CHANNEL=$(sdptool browse $BOF_BTADDRESS | grep -A 20 "OBEX FTP" | grep -m1 Channel | cut -f 2 -d ":")
+BOF_CHANNEL="${BOF_CHANNEL:-0}"
+printf -v BOF_CHANNEL '%d\n' $BOF_CHANNEL 2>/dev/null
 (($BOF_DEBUG)) && printf " CHANNEL=$BOF_CHANNEL\n"
 ((! $BOF_CHANNEL)) && printf "$0: OBEX FTP not available.\n" && exit 5
-
 sleep $BOF_OBEXTIMEOUT
 BOF_XMLIST=$(obexftp -d $BOF_HCIX -b $BOF_BTADDRESS -B $BOF_CHANNEL -C $BOF_FOLDER -l 2>>$BOF_OBEXFTPLOG)
 if [ $? -eq 255 ]; then
     BOF_FILES=$(echo $BOF_XMLIST | xmlstarlet sel -T -t -m //file/@name -v . -n 2>>$BOF_XMLSTARTLETLOG)
-    
     for i in $BOF_FILES; do
 	(($BOF_LIST)) && printf "$i\n"
 	(($BOF_GET)) && sleep $BOF_OBEXTIMEOUT && obexftp -d $BOF_HCIX -b $BOF_BTADDRESS -B $BOF_CHANNEL -C $BOF_FOLDER -g $i
