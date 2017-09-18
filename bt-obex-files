@@ -10,7 +10,7 @@ fi
 USAGE="$(basename "$0") [-v|--verbose] [-d|--debug]
               [-l]--list] [-g|--get] [-k|--delete]
               [-c|--hci HCIX] [-f|--folder FOLDER] <bluetooth address>
-              -- list files in a folder
+              -- list/get/delete all files in a folder
 
 where:
     -v --verbose ........ Verbose
