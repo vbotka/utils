@@ -1,0 +1,23 @@
+#!/bin/bash
+#set -x
+
+USAGE="$(basename "$0") <name of the variable with BT address> <file>"
+EXPECTED_ARGS=2
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+HCI=$OBEXHCI
+DEVICE=$1
+BTADDRESS=${!DEVICE}
+#echo "BT address of $DEVICE: $BTADDRESS"
+#exit
+
+CHANNEL=$(sdptool browse $BTADDRESS | grep -A 20 "OBEX FTP" | grep -m1 Channel | cut -f 2 -d ":")
+CHANNEL="${CHANNEL:-0}"
+printf -v CHANNEL '%d\n' $CHANNEL 2>/dev/null
+((! $CHANNEL)) && printf "$0: OBEX FTP not available.\n" && exit 1
+obexftp -d $HCI -b $BTADDRESS -B $CHANNEL -p $2
+
+#EOF
