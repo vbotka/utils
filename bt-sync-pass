@@ -1,12 +1,19 @@
 #!/bin/bash
 #set -x
 
+USAGE="$(basename "$0") <Name of the variable with BT address>"
+EXPECTED_ARGS=1
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
 HCI=$OBEXHCI
 KEEPASS_SRC=/home/$USER/keepassx
 KEEPASS_DEST=keepass
 KEEPASS_DB=database.kdbx
 
-DEVICE="MY$1"
+DEVICE=$1
 BTADDRESS=${!DEVICE}
 #echo "BT address of $DEVICE: $BTADDRESS"
 #exit
