@@ -1,0 +1,76 @@
+#!/bin/bash
+#set -x
+
+getopt --test > /dev/null
+if [[ $? -ne 4 ]]; then
+    echo "$0: I’m sorry, `getopt --test` failed in this environment."
+    exit 1
+fi
+
+USAGE="$(basename "$0") [-n|--dry-run] file
+            -- rename file"
+
+EXPECTED_ARGS=1
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+OPTIONS=n
+LONGOPTIONS=dry-run
+PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTIONS --name "$0" -- "$@")
+if [[ $? -ne 0 ]]; then
+    exit 2
+fi
+eval set -- "$PARSED"
+
+DRYRUN=0
+while true
+do
+    case "$1" in
+	-n|--dry-run)
+	    DRYRUN=1
+	    shift
+	    ;;
+        --)
+	    shift
+	    break
+	    ;;
+	*)
+	    printf "$0: Programming error\n"
+	    exit 3
+	    ;;
+    esac
+done
+
+for i in "$@"; do
+    source=$i
+    target=`echo "$i" | sed 's/ /_/g'`;           # change "space" to "_"
+   #target=`echo "$i" | sed 's/%20/_/g'`;   # change "space" to "_"
+    target=`echo "$target" | sed 's/[()]//g'`;    # remove "()"
+   #target=`echo "$target" | sed 's/,//g'`;      # remove ","
+   #target=`echo "$target" | sed 's/:/-/g'`;     # change ":" to "-"
+    target=`echo "$target" | sed 's/@//g'`;       # remove "@"
+   #target=`echo "$target" | tr '[:upper:]' '[:lower:]'`;
+   #target=`echo "$target" | iconv -f latin1 -t ascii//TRANSLIT`;
+    target=`echo "$target" | sed -e 's/[àäâá]/a/g'`
+    target=`echo "$target" | sed -e 's/[éěêệ]/e/g'`
+    target=`echo "$target" | sed -e 's/[íì]/i/g'`
+    target=`echo "$target" | sed -e 's/[óöôọõ]/o/g'`
+    target=`echo "$target" | sed -e 's/[úüů]/u/g'`
+    target=`echo "$target" | sed -e 's/[č]/c/g'`
+    target=`echo "$target" | sed -e 's/[ň]/n/g'`
+    target=`echo "$target" | sed -e 's/[ľ]/l/g'`
+    target=`echo "$target" | sed -e 's/[ř]/r/g'`
+    target=`echo "$target" | sed -e 's/[š]/s/g'`
+    target=`echo "$target" | sed -e 's/[ť]/t/g'`
+    target=`echo "$target" | sed -e 's/[ž]/z/g'`
+    target=`echo "$target" | sed -e 's/[ý]/y/g'`
+    target=`echo "$target" | sed -e 's/[^A-Za-z0-9._-]/_/g'`
+    if [ "$source" != "$target" ]; then
+	printf "Moving $source \n    to $target\n"
+	((! $DRYRUN)) && mv "$i" "$target";
+    fi
+done
+
+# EOF
