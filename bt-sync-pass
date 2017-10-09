@@ -22,9 +22,9 @@ CHANNEL=$(sdptool browse $BTADDRESS | grep -A 20 "OBEX FTP" | grep -m1 Channel |
 CHANNEL="${CHANNEL:-0}"
 printf -v CHANNEL '%d\n' $CHANNEL 2>/dev/null
 ((! $CHANNEL)) && printf "$0: OBEX FTP not available.\n" && exit 1
-sleep 1
+sleep 3
 obexftp -d $HCI -b $BTADDRESS -B $CHANNEL -c $KEEPASS_DEST -k $KEEPASS_DB
-sleep 1
+sleep 3
 obexftp -d $HCI -b $BTADDRESS -B $CHANNEL -c $KEEPASS_DEST -p $KEEPASS_SRC/$KEEPASS_DB
 
 # EOF
