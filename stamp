@@ -12,6 +12,8 @@ fi
 NAME=`date +%F`
 NAME+="-"
 NAME+=$1
-mv $1 $NAME
+mv "$1" "$NAME"
 
 exit 0
+
+# EOF
