@@ -23,6 +23,7 @@ AVMGMT_VAULT_DIR = 'vault'
 AVMGMT_VAULT_PASSWD_FILE = '~/.vault_pass.txt'
 AVMGMT_VAULT_FILE_MASK = 0o600
 AVMGMT_VAULT_FILE_EXT = 'yml'
+AVMGMT_VAULT_ID = 'default'
 
 v = open(AVMGMT_DIR + '/' + AVMGMT_VAR_FILE, 'r')
 p = open(AVMGMT_DIR + '/' + AVMGMT_PASSWD_FILE, 'r')
@@ -31,7 +32,7 @@ for line1, line2 in zip(v,p):
     line1 = line1.rstrip()
     l = line1.split(AVMGMT_VAR_FILE_SEPARATOR)
     secret = line2.rstrip()
-    vault_command = 'ansible-vault encrypt_string --vault-id ' + AVMGMT_VAULT_PASSWD_FILE + ' ' + secret + ' --name' + ' ' + l[2]
+    vault_command = 'ansible-vault encrypt_string --encrypt-vault-id=' + AVMGMT_VAULT_ID + ' --vault-password-file=' + AVMGMT_VAULT_PASSWD_FILE + ' ' + secret + ' --name '  + l[2]
     vault_file = AVMGMT_VAULT_DIR + '/' + l[0] + '@' + l[1] + ':' + l[2] + '.' + AVMGMT_VAULT_FILE_EXT
     #print("%s\n %s\n %s\n" % (vault_file, secret, vault_command))
     try:
