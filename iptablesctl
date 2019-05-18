@@ -1,0 +1,154 @@
+#!/bin/bash
+
+# Author: Vladimir Botka <vbotka@gmail.com>
+# License: BSD
+
+version="0.0.1"
+USAGE="iptablesctl ver $version
+Usage:
+        iptablesctl [-h|--help] [-V|--version] [-d|--debug] 
+                    [-f|file <path>] [-i|--ipv <ipv>] command
+Options:
+        -h --help .......... show this help and exit
+        -V --version ....... print version and exit
+        -d --debug ......... print debug message
+        -f --file <path> ... file to store iptables to, or restore from
+        -i --ipv <version>   Internet Protocolo version (4, or 6)
+        command ............ info/store/restore/disable
+Defaults:
+        ipv ................ 4
+        file for IPv4 ...... \$HOME/firewall.txt
+        file for IPv6 ...... \$HOME/firewall6.txt"
+
+
+expected_args=1
+if [ $# -lt $expected_args ]; then
+    echo "$USAGE"
+    exit 0
+fi
+
+_iptables-info() {
+    if [ $ipv -eq 4 ]; then
+	iptables -L -n -v
+    elif [ $ipv -eq 6 ]; then
+	ip6tables -L -n -v
+    else
+	printf "[ERROR] Unknown IP version: $ipv\n"
+	exit 1
+    fi
+}
+
+_iptables-save() {
+    if [ $ipv -eq 4 ]; then
+	iptables-save > $file4
+    elif [ $ipv -eq 6 ]; then
+	ip6tables-save > $file6
+    else
+	printf "[ERROR] Unknown IP version: $ipv\n"
+	exit 1
+    fi
+}
+
+_iptables-restore() {
+    if [ $ipv -eq 4 ]; then
+	iptables-restore < $file4
+    elif [ $ipv -eq 6 ]; then
+	ip6tables-restore < $file6
+    else
+	printf "[ERROR] Unknown IP version: $ipv\n"
+	exit 1
+    fi
+}
+
+_iptables-disable() {
+    if [ $ipv -eq 4 ]; then
+	iptables -F
+        iptables -X
+        iptables -t nat -F
+        iptables -t nat -X
+        iptables -t mangle -F
+        iptables -t mangle -X
+        iptables -P INPUT ACCEPT
+        iptables -P OUTPUT ACCEPT
+        iptables -P FORWARD ACCEPT
+    elif [ $ipv -eq 6 ]; then
+	ip6tables -X
+        ip6tables -t mangle -F
+        ip6tables -t mangle -X
+        ip6tables -P INPUT ACCEPT
+        ip6tables -P FORWARD ACCEPT
+        ip6tables -P OUTPUT ACCEPT
+    else
+	printf "[ERROR] Unknown IP version: $ipv\n"
+	exit 1
+    fi
+}
+
+file4="$HOME/firewall.txt"
+file6="$HOME/firewall6.txt"
+ipv="4"
+
+while [ "$1" != "" ]; do
+    case $1 in
+        -h | --help )
+	    printf "$USAGE\n"
+            exit 0
+            ;;
+	-V|--version)
+	    printf "$version\n"
+	    exit 0
+	    ;;
+        -i | --ipv)
+            shift
+            ipv=$1
+	    if [ ! \( $ipv -eq 4 -o $ipv -eq 6 \) ]; then
+		printf "$USAGE\n"
+		exit 1
+	    fi
+            ;;
+        -f | --file )
+            shift
+	    if [ $ipv -eq 4 ]; then
+		file4=$1
+	    elif [ $ipv -eq 6 ]; then
+		file4=$1
+	    else
+		printf "$USAGE\n"
+		exit 1
+	    fi
+            ;;
+	-d|--debug)
+	    printf "version: $version\n"
+	    printf "ipv: $ipv\n"
+	    printf "file4: $file4\n"
+	    printf "file6: $file6\n"
+	    printf "iptables-save: `which iptables-save`\n"
+	    printf "iptables-restore: `which iptables-restore`\n"
+	    ;;
+	info)
+            _iptables-info
+	    shift
+	    ;;
+	save)
+	    _iptables-save
+	    shift
+	    ;;
+	restore)
+            _iptables-restore
+	    shift
+	    ;;
+	disable)
+            _iptables-disable
+	    shift
+	    ;;
+        * )
+	    printf "$USAGE\n"
+	    exit 1
+	    ;;
+    esac
+    shift
+done
+
+exit 0
+
+# EOF
