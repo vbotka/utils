@@ -3,7 +3,7 @@
 # Author: Vladimir Botka <vbotka@gmail.com>
 # License: BSD
 
-version="0.0.1"
+version="0.0.2"
 USAGE="iptablesctl ver $version
 Usage:
         iptablesctl [-h|--help] [-V|--version] [-d|--debug] 
@@ -14,7 +14,7 @@ Options:
         -d --debug ......... print debug message
         -f --file <path> ... file to store iptables to, or restore from
         -i --ipv <version>   Internet Protocolo version (4, or 6)
-        command ............ info/store/restore/disable
+        command ............ info/save/restore/disable
 Defaults:
         ipv ................ 4
         file for IPv4 ...... \$HOME/firewall.txt
