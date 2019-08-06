@@ -1,5 +1,33 @@
 #!/bin/bash
 #set -x
+#
+# Copyright 2019 Vladimir Botka <vbotka@gmail.com>
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#
+# 1. Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright
+# notice, this list of conditions and the following disclaimer in the
+# documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+#
+
 
 getopt --test > /dev/null
 if [[ $? -ne 4 ]]; then
@@ -7,8 +35,10 @@ if [[ $? -ne 4 ]]; then
     exit 1
 fi
 
-USAGE="$(basename "$0") [-n|--dry-run] file
-            -- rename file"
+version="1.0.0"
+USAGE="$(basename "$0") ver $version
+Usage:
+        $(basename "$0") [-n|--dry-run] file"
 
 EXPECTED_ARGS=1
 if [ $# -lt $EXPECTED_ARGS ]; then
@@ -43,16 +73,26 @@ do
     esac
 done
 
+pathseparator="/"
 for i in "$@"; do
-    source=$i
-    target=`echo "$i" | sed 's/ /_/g'`;           # change "space" to "_"
-   #target=`echo "$i" | sed 's/%20/_/g'`;   # change "space" to "_"
-    target=`echo "$target" | sed 's/[()]//g'`;    # remove "()"
-   #target=`echo "$target" | sed 's/,//g'`;      # remove ","
-   #target=`echo "$target" | sed 's/:/-/g'`;     # change ":" to "-"
-    target=`echo "$target" | sed 's/@//g'`;       # remove "@"
-   #target=`echo "$target" | tr '[:upper:]' '[:lower:]'`;
-   #target=`echo "$target" | iconv -f latin1 -t ascii//TRANSLIT`;
+    if [[ "$i" == *"$pathseparator"* ]]; then
+        # printf "Found pathseparator $pathseparator in $i\n"
+	basename=$(echo "$i" | rev | cut -d $pathseparator -f 1 | rev)
+	dirname=$(echo "$i" | rev | cut -d $pathseparator -f 2- | rev)
+    else
+	basename=$i
+	dirname="."
+    fi
+    # printf "basename: $basename, dirname: $dirname\n"
+    target="$basename"
+    target=`echo "$target" | sed 's/ /_/g'`;          # change "space" to "_"
+    # target=`echo "$target" | sed 's/%20/_/g'`;      # change "space" to "_"
+    target=`echo "$target" | sed 's/[()]//g'`;        # remove "()"
+    # target=`echo "$target" | sed 's/,//g'`;         # remove ","
+    # target=`echo "$target" | sed 's/:/-/g'`;        # change ":" to "-"
+    target=`echo "$target" | sed 's/@//g'`;           # remove "@"
+    # target=`echo "$target" | tr '[:upper:]' '[:lower:]'`;
+    # target=`echo "$target" | iconv -f latin1 -t ascii//TRANSLIT`;
     target=`echo "$target" | sed -e 's/[àäâá]/a/g'`
     target=`echo "$target" | sed -e 's/[éěêệ]/e/g'`
     target=`echo "$target" | sed -e 's/[íì]/i/g'`
@@ -67,9 +107,9 @@ for i in "$@"; do
     target=`echo "$target" | sed -e 's/[ž]/z/g'`
     target=`echo "$target" | sed -e 's/[ý]/y/g'`
     target=`echo "$target" | sed -e 's/[^A-Za-z0-9._-]/_/g'`
-    if [ "$source" != "$target" ]; then
-	printf "Moving $source \n    to $target\n"
-	((! $DRYRUN)) && mv "$i" "$target";
+    if [ "$basename" != "$target" ]; then
+	printf "Moving $dirname/$basename\n    to $dirname/$target\n";
+	((! $DRYRUN)) && mv "$dirname/$basename" "$dirname/$target";
     fi
 done
 
