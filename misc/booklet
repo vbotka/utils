@@ -1,0 +1,29 @@
+#! /bin/bash
+#
+
+VERSION="0.1"
+USAGE="$(basename "$0") psfile]"
+
+EXPECTED_ARGS=1
+if [ $# -lt $EXPECTED_ARGS ]; then
+    echo "$USAGE"
+    exit
+fi
+
+
+PS2PS="/usr/bin/pstops"
+PS2PSARGS="pa4"
+
+# create 2 parts of the ps file to print small booklet
+$PS2PS -$PS2PSARGS '4:3L@.6(21cm,0)+0L@.6(21cm,14.85cm)' $1 part1.ps 
+
+# for 6L
+$PS2PS -$PS2PSARGS '4:-1L@.6(21cm,0)+-2L@.6(21cm,14.85cm)' $1 part2-HP6L.ps
+
+# for 4L
+$PS2PS -$PS2PSARGS '4:1R@.6(0,29.70cm)+2R@.6(0,14.85cm)' $1 part2-HP4L.ps
+
+echo "==========================================="
+echo "|                                         |"
+echo "| for HP1200,2100,2300 use part2-HP6L.ps  |"
+echo "==========================================="
