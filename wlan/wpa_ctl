@@ -4,20 +4,20 @@
 # All rights reserved (c) 2019, Vladimir Botka <vbotka@gmail.com>
 # Simplified BSD License, https://opensource.org/licenses/BSD-2-Clause
 
-#version="1.0.1-CURRENT"
-version="1.0.0"
+version="1.1.0"
 
 # Usage
 usage="$(basename "$0") ver $version
 
 Usage:
-    $(basename "$0") [-h|--help] [-V|--version] [-l|--list]
+    $(basename "$0") [-h|--help] [-V|--version] [-i|--info] [-l|--list]
             [-s|--silent] [-d|--debug] [-a|--all|<interface>]
             -- Control wireless interface
 Where:
             -h  --help ..... show this help and exit
             -V  --version .. print version and exit
-            -l  --list ..... list interfaces
+            -i  --info ..... print interfaces info and exit
+            -l  --list ..... print list of interfaces and exit
             -s  --silent ... report errors only
             -d  --debug .... print debug messages
             -a  --all ...... initialize all interfaces
@@ -106,6 +106,18 @@ for i in "$@"; do
 	    ;;
 	-V|--version)
 	    printf "$version\n"
+	    exit 0
+	    ;;
+	-i|--info)
+	    for interface in $interfaces; do
+		log1=$(iw dev $interface link | head -n 1 2>&1)
+		log2=$(iw dev $interface get power_save | head -n 1 2>&1)
+		# log3=$(cat /sys/class/net/$interface/device/vendor 2>&1)
+		# log4=$(cat /sys/class/net/$interface/device/subsystem_vendor 2>&1)
+		# log5=$(cat /sys/class/net/$interface/device/subsystem_device 2>&1)
+		# log6=$(cat /sys/class/net/$interface/device/max_link_speed 2>&1)
+		printf "$interface|$log1|$log2\n"
+	    done
 	    exit 0
 	    ;;
 	-l|--list)
