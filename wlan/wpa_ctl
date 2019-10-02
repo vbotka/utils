@@ -1,0 +1,143 @@
+#!/bin/bash
+#set -x
+
+# All rights reserved (c) 2019, Vladimir Botka <vbotka@gmail.com>
+# Simplified BSD License, https://opensource.org/licenses/BSD-2-Clause
+
+#version="1.0.1-CURRENT"
+version="1.0.0"
+
+# Usage
+usage="$(basename "$0") ver $version
+
+Usage:
+    $(basename "$0") [-h|--help] [-V|--version] [-l|--list]
+            [-s|--silent] [-d|--debug] [-a|--all|<interface>]
+            -- Control wireless interface
+Where:
+            -h  --help ..... show this help and exit
+            -V  --version .. print version and exit
+            -l  --list ..... list interfaces
+            -s  --silent ... report errors only
+            -d  --debug .... print debug messages
+            -a  --all ...... initialize all interfaces
+            <interface> .... initialize interface"
+
+expected_args=1
+if [[ $# -lt $expected_args ]]; then
+    echo "$usage"
+    exit 0
+fi
+
+# Configuration
+wpa_supplicant=/usr/sbin/wpa_supplicant
+wpa_cli=/usr/sbin/wpa_cli
+wpa_action=/root/bin/wpa_action.sh
+logtofile="1"
+logfile="/var/log/wpa_ctl"
+
+# Logging
+function log-ok {
+    (($verbose)) && printf "[OK]  wpa_ctl: $message\n"
+    (($logtofile)) && printf "`date "+%F %T"` [OK]  wpa_ctl: $message\n" >> $logfile
+}
+
+function log-dbg {
+    (($debug)) && printf "[DBG] wpa_ctl: $message\n"
+    (($debug)) && (($logtofile)) && printf "`date "+%F %T"` [DBG] wpa_ctl: $message\n" >> $logfile
+}
+
+function log-err {
+    printf "[ERR] wpa_ctl: $message\n"
+    (($logtofile)) && printf "`date "+%F %T"` [ERR] wpa_ctl: $message\n" >> $logfile
+}
+
+# Read configuration
+if [[ -f /etc/wpa_ctl ]]; then
+    message="  configuration: /etc/wpa_ctl found."; log-dbg
+    . /etc/wpa_ctl
+fi
+if [[ -f /usr/local/etc/wpa_ctl ]]; then
+    message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg
+    . /usr/local/etc/wpa_ctl
+fi
+if [[ -f ~/.wpa_ctl ]]; then
+    message="  configuration: ~/.wpa_ctl found."; log-dbg
+    . ~/.wpa_ctl
+fi
+if [[ -f ./.wpa_ctl ]]; then
+    message="  configuration: ./.wpa_ctl found."; log-dbg
+    . ./.wpa_ctl
+fi
+
+# Initialize interface
+function interface_initialize {
+    if log=$(ps ax | grep wlp60s0 | grep wpa_supplicant 2>&1); then
+	message="  wpa_supplicant is running on $interface"; log-ok
+    else
+	if log=$($wpa_supplicant -B -i$interface \
+                 -c/etc/wpa_supplicant/wpa_supplicant.conf.$interface \
+                 -f/var/log/wpa_supplicant.$interface.log 2>&1); then
+	    message="  wpa_supplicant started on $interface"; log-ok
+	else
+	    message="  wpa_supplicant failed to start on $interface: \n$log"; log-err
+	fi
+    fi
+
+    if log=$(ps ax | grep wlp60s0 | grep wpa_cli 2>&1); then
+	message="  wpa_cli is running on $interface"; log-ok
+    else
+	if log=$($wpa_cli -B -i$interface -a $wpa_action 2>&1); then
+	    message="  wpa_cli started on $interface"; log-ok
+	else
+	    message="  wpa_cli failed to start on $interface: \n$log"; log-err
+	fi
+    fi
+}
+
+debug=0
+verbose=1
+interfaces=$(iw dev | grep Interface | cut -d ' ' -f 2)
+for i in "$@"; do
+    case $i in
+	-h|--help)
+	    printf "$usage\n"
+	    exit 0
+	    ;;
+	-V|--version)
+	    printf "$version\n"
+	    exit 0
+	    ;;
+	-l|--list)
+	    printf "$interfaces\n"
+	    exit 0
+	    ;;
+	-d|--debug)
+	    debug=1
+	    [[ -f /etc/wpa_ctl ]] && (message="  configuration: /etc/wpa_ctl found."; log-dbg)
+	    [[ -f /usr/local/etc/wpa_ctl ]] && (message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg)
+	    [[ -f ~/.wpa_ctl ]] && (message="  configuration: ~/.wpa_ctl found."; log-dbg)
+	    [[ -f ./.wpa_ctl ]] && (message="  configuration: ./.wpa_ctl found."; log-dbg)
+	    ;;
+	-s|--silent)
+	    verbose=0
+	    ;;
+	-a|--all)
+	    for interface in $interfaces; do
+		interface_initialize
+	    done
+	    ;;
+	*)
+	    if [[ $interfaces =~ $i ]]; then
+		interface=$i
+		interface_initialize
+	    else
+		message="  Unknown interface $i"; log-err
+	    fi
+	    ;;
+    esac
+done
+
+exit 0
+
+# EOF
