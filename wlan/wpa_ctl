@@ -4,13 +4,13 @@
 # All rights reserved (c) 2019, Vladimir Botka <vbotka@gmail.com>
 # Simplified BSD License, https://opensource.org/licenses/BSD-2-Clause
 
-version="1.1.0"
+version="1.2.0"
 
 # Usage
 usage="$(basename "$0") ver $version
 
 Usage:
-    $(basename "$0") [-h|--help] [-V|--version] [-i|--info] [-l|--list]
+  $(basename "$0") [-h|--help] [-V|--version] [-i|--info] [-l|--list]
             [-s|--silent] [-d|--debug] [-a|--all|<interface>]
             -- Control wireless interface
 Where:
@@ -20,8 +20,16 @@ Where:
             -l  --list ..... print list of interfaces and exit
             -s  --silent ... report errors only
             -d  --debug .... print debug messages
-            -a  --all ...... initialize all interfaces
-            <interface> .... initialize interface"
+            -k  --kill ..... kill interface(s)
+            -a  --all ...... control all interfaces (default init)
+            <interface> .... control interface (default init)
+
+Examples:
+  wpa_ctl -l ............... list all interfaces
+  wpa_ctl wlan0 ............ initialize wlan0
+  wpa_ctl -a ............... initialize all interfaces
+  wpa_ctl -k wlan0 ......... terminate wlan0
+  wpa_ctl -k -a ............ terminate all interfaces"
 
 expected_args=1
 if [[ $# -lt $expected_args ]]; then
@@ -33,8 +41,13 @@ fi
 wpa_supplicant=/usr/sbin/wpa_supplicant
 wpa_cli=/usr/sbin/wpa_cli
 wpa_action=/root/bin/wpa_action.sh
+pkill=/usr/bin/pkill
+pid_path=/var/run
+ctrl_interface=/var/run/wpa_supplicant
 logtofile="1"
 logfile="/var/log/wpa_ctl"
+debug=0
+verbose=1
 
 # Logging
 function log-ok {
@@ -53,41 +66,44 @@ function log-err {
 }
 
 # Read configuration
-if [[ -f /etc/wpa_ctl ]]; then
+if [ -f /etc/wpa_ctl ]; then
     message="  configuration: /etc/wpa_ctl found."; log-dbg
     . /etc/wpa_ctl
 fi
-if [[ -f /usr/local/etc/wpa_ctl ]]; then
+if [ -f /usr/local/etc/wpa_ctl ]; then
     message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg
     . /usr/local/etc/wpa_ctl
 fi
-if [[ -f ~/.wpa_ctl ]]; then
+if [ -f ~/.wpa_ctl ]; then
     message="  configuration: ~/.wpa_ctl found."; log-dbg
     . ~/.wpa_ctl
 fi
-if [[ -f ./.wpa_ctl ]]; then
+if [ -f ./.wpa_ctl ]; then
     message="  configuration: ./.wpa_ctl found."; log-dbg
     . ./.wpa_ctl
 fi
 
 # Initialize interface
 function interface_initialize {
-    if log=$(ps ax | grep wlp60s0 | grep wpa_supplicant 2>&1); then
+    if [ -S $ctrl_interface/$interface ]; then
 	message="  wpa_supplicant is running on $interface"; log-ok
     else
 	if log=$($wpa_supplicant -B -i$interface \
-                 -c/etc/wpa_supplicant/wpa_supplicant.conf.$interface \
-                 -f/var/log/wpa_supplicant.$interface.log 2>&1); then
+		                 -P$pid_path/wpa_supplicant.$interface.pid \
+                                 -c/etc/wpa_supplicant/wpa_supplicant.conf.$interface \
+                                 -f/var/log/wpa_supplicant.$interface.log 2>&1); then
 	    message="  wpa_supplicant started on $interface"; log-ok
 	else
 	    message="  wpa_supplicant failed to start on $interface: \n$log"; log-err
 	fi
     fi
 
-    if log=$(ps ax | grep wlp60s0 | grep wpa_cli 2>&1); then
+    if log=$(ps ax | grep $interface | grep wpa_cli 2>&1); then
 	message="  wpa_cli is running on $interface"; log-ok
     else
-	if log=$($wpa_cli -B -i$interface -a $wpa_action 2>&1); then
+	if log=$($wpa_cli -B -i$interface \
+			  -P $pid_path/wpa_cli.$interface.pid \
+			  -a $wpa_action 2>&1); then
 	    message="  wpa_cli started on $interface"; log-ok
 	else
 	    message="  wpa_cli failed to start on $interface: \n$log"; log-err
@@ -95,9 +111,32 @@ function interface_initialize {
     fi
 }
 
-debug=0
-verbose=1
+# Kill interface
+function interface_kill {
+    if [ ! -S $ctrl_interface/$interface ]; then
+	message="  wpa_supplicant is not running on $interface"; log-ok
+    else
+	if log=$($pkill -F$pid_path/wpa_supplicant.$interface.pid 2>&1); then
+	    message="  wpa_supplicant on $interface terminated"; log-ok
+	else
+	    message="  wpa_supplicant failed to terminate on $interface: \n$log"; log-err
+	fi
+    fi
+
+    if log=$(ps ax | grep $interface | grep wpa_cli 2>&1); then
+	if log=$($pkill -F$pid_path/wpa_cli.$interface.pid 2>&1); then
+	    message="  wpa_cli started on $interface terminated"; log-ok
+	else
+	    message="  wpa_cli failed to terminate on $interface: \n$log"; log-err
+	fi
+    else
+	message="  wpa_cli is not running on $interface"; log-ok
+    fi
+}
+
 interfaces=$(iw dev | grep Interface | cut -d ' ' -f 2)
+
+action="init"
 for i in "$@"; do
     case $i in
 	-h|--help)
@@ -134,17 +173,42 @@ for i in "$@"; do
 	-s|--silent)
 	    verbose=0
 	    ;;
+	-k|--kill)
+	    action="kill"
+	    ;;
 	-a|--all)
 	    for interface in $interfaces; do
-		interface_initialize
+		case $action in
+		    init)
+			interface_initialize
+			;;
+		    kill)
+			interface_kill
+			;;
+		    *)
+			message="  Unknown action: $action"; log-err
+			exit -1
+			;;
+		esac
 	    done
 	    ;;
 	*)
 	    if [[ $interfaces =~ $i ]]; then
 		interface=$i
-		interface_initialize
+		case $action in
+		    init)
+			interface_initialize
+			;;
+		    kill)
+			interface_kill
+			;;
+		    *)
+			message="  Unknown action: $action"; log-err
+			exit -1
+			;;
+		esac
 	    else
-		message="  Unknown interface $i"; log-err
+		message="  Unknown interface: $i"; log-err
 	    fi
 	    ;;
     esac
