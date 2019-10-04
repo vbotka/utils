@@ -4,25 +4,25 @@
 # All rights reserved (c) 2019, Vladimir Botka <vbotka@gmail.com>
 # Simplified BSD License, https://opensource.org/licenses/BSD-2-Clause
 
-version="1.2.0"
+version="1.3.0"
 
 # Usage
 usage="$(basename "$0") ver $version
 
 Usage:
   $(basename "$0") [-h|--help] [-V|--version] [-i|--info] [-l|--list]
-            [-s|--silent] [-d|--debug] [-a|--all|<interface>]
-            -- Control wireless interface
+          [-s|--silent] [-d|--debug] [-a|--all|<interface>]
+          -- Control wireless interface
 Where:
-            -h  --help ..... show this help and exit
-            -V  --version .. print version and exit
-            -i  --info ..... print interfaces info and exit
-            -l  --list ..... print list of interfaces and exit
-            -s  --silent ... report errors only
-            -d  --debug .... print debug messages
-            -k  --kill ..... kill interface(s)
-            -a  --all ...... control all interfaces (default init)
-            <interface> .... control interface (default init)
+          -h  --help ....... show this help and exit
+          -V  --version .... print version and exit
+          -i  --info ....... print interfaces info and exit
+          -l  --list ....... print list of interfaces and exit
+          -s  --silent ..... report errors only
+          -d  --debug ...... print debug messages
+          -k  --kill ....... kill interface(s)
+          -a  --all ........ control all interfaces (default init)
+          <interface> ...... control interface (default init)
 
 Examples:
   wpa_ctl -l ............... list all interfaces
@@ -32,7 +32,7 @@ Examples:
   wpa_ctl -k -a ............ terminate all interfaces"
 
 expected_args=1
-if [[ $# -lt $expected_args ]]; then
+if [ $# -lt $expected_args ]; then
     echo "$usage"
     exit 0
 fi
@@ -41,13 +41,17 @@ fi
 wpa_supplicant=/usr/sbin/wpa_supplicant
 wpa_cli=/usr/sbin/wpa_cli
 wpa_action=/root/bin/wpa_action.sh
+wpa_gui=/usr/sbin/wpa_gui
 pkill=/usr/bin/pkill
+nohup=/usr/bin/nohup
 pid_path=/var/run
 ctrl_interface=/var/run/wpa_supplicant
-logtofile="1"
-logfile="/var/log/wpa_ctl"
-debug=0
-verbose=1
+logfile="/var/log/wpa_ctl"   # Path to logile
+logtofile=1                  # Send messages to the logfile
+debug=0                      # Print debug messages
+verbose=1                    # Print messages to the standard output
+wpa_gui_enable=0             # Start wpa_gui for each interface
+wpa_gui_user=$SUDO_USER      # User running wpa_gui
 
 # Logging
 function log-ok {
@@ -66,22 +70,42 @@ function log-err {
 }
 
 # Read configuration
-if [ -f /etc/wpa_ctl ]; then
-    message="  configuration: /etc/wpa_ctl found."; log-dbg
-    . /etc/wpa_ctl
-fi
-if [ -f /usr/local/etc/wpa_ctl ]; then
-    message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg
-    . /usr/local/etc/wpa_ctl
-fi
-if [ -f ~/.wpa_ctl ]; then
-    message="  configuration: ~/.wpa_ctl found."; log-dbg
-    . ~/.wpa_ctl
-fi
-if [ -f ./.wpa_ctl ]; then
-    message="  configuration: ./.wpa_ctl found."; log-dbg
-    . ./.wpa_ctl
-fi
+function read_configuration {
+    if [ -f /etc/wpa_ctl ]; then
+	message="  configuration: /etc/wpa_ctl found."; log-dbg
+	. /etc/wpa_ctl
+    fi
+    if [ -f /usr/local/etc/wpa_ctl ]; then
+	message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg
+	. /usr/local/etc/wpa_ctl
+    fi
+    if [ -f ~/.wpa_ctl ]; then
+	message="  configuration: ~/.wpa_ctl found."; log-dbg
+	. ~/.wpa_ctl
+    fi
+    if [ -f ./.wpa_ctl ]; then
+	message="  configuration: ./.wpa_ctl found."; log-dbg
+	. ./.wpa_ctl
+    fi
+}
+read_configuration
+
+# Print configuration
+function print_configuration {
+    message="  wpa_supplicant: $wpa_supplicant"; log-ok
+    message="  wpa_cli: $wpa_cli"; log-ok
+    message="  wpa_action: $wpa_action"; log-ok
+    message="  wpa_gui: $wpa_gui"; log-ok
+    message="  pkill: $pkill"; log-ok
+    message="  pid_path: $pid_path"; log-ok
+    message="  ctrl_interface: $ctrl_interface"; log-ok
+    message="  logfile: $logfile"; log-ok
+    message="  logtofile: $logtofile"; log-ok
+    message="  debug: $debug"; log-ok
+    message="  verbose: $verbose"; log-ok
+    message="  wpa_gui_enable: $wpa_gui_enable"; log-ok
+    message="  wpa_gui_user: $wpa_gui_user"; log-ok
+}
 
 # Initialize interface
 function interface_initialize {
@@ -101,12 +125,26 @@ function interface_initialize {
     if log=$(ps ax | grep $interface | grep wpa_cli 2>&1); then
 	message="  wpa_cli is running on $interface"; log-ok
     else
-	if log=$($wpa_cli -B -i$interface \
+	if log=$($wpa_cli -B -i $interface \
 			  -P $pid_path/wpa_cli.$interface.pid \
 			  -a $wpa_action 2>&1); then
 	    message="  wpa_cli started on $interface"; log-ok
 	else
 	    message="  wpa_cli failed to start on $interface: \n$log"; log-err
+	fi
+    fi
+
+    (($wpa_gui_enable)) && wpa_gui_start
+}
+
+function wpa_gui_start {
+    if log=$(ps ax | grep $interface | grep wpa_gui 2>&1); then
+	message="  wpa_gui is running on $interface"; log-ok
+    else
+	if log=$(su $wpa_gui_user -c "$wpa_gui -t -i $interface -p $ctrl_interface &"); then
+	    message="  wpa_gui started on $interface"; log-ok
+	else
+	    message="  wpa_gui failed to start on $interface: \n$log"; log-err
 	fi
     fi
 }
@@ -134,9 +172,25 @@ function interface_kill {
     fi
 }
 
-interfaces=$(iw dev | grep Interface | cut -d ' ' -f 2)
+# Control interface
+function interface_control {
+    case $action in
+	init)
+	    interface_initialize
+	    ;;
+	kill)
+	    interface_kill
+	    ;;
+	*)
+	    message="  Unknown action: $action"; log-err
+	    exit -1
+	    ;;
+    esac
+}
 
+interfaces=$(iw dev | grep Interface | cut -d ' ' -f 2)
 action="init"
+
 for i in "$@"; do
     case $i in
 	-h|--help)
@@ -165,10 +219,11 @@ for i in "$@"; do
 	    ;;
 	-d|--debug)
 	    debug=1
-	    [[ -f /etc/wpa_ctl ]] && (message="  configuration: /etc/wpa_ctl found."; log-dbg)
-	    [[ -f /usr/local/etc/wpa_ctl ]] && (message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg)
-	    [[ -f ~/.wpa_ctl ]] && (message="  configuration: ~/.wpa_ctl found."; log-dbg)
-	    [[ -f ./.wpa_ctl ]] && (message="  configuration: ./.wpa_ctl found."; log-dbg)
+	    [ -f /etc/wpa_ctl ] && (message="  configuration: /etc/wpa_ctl found."; log-dbg)
+	    [ -f /usr/local/etc/wpa_ctl ] && (message="  configuration: /usr/local/etc/wpa_ctl found."; log-dbg)
+	    [ -f ~/.wpa_ctl ] && (message="  configuration: ~/.wpa_ctl found."; log-dbg)
+	    [ -f ./.wpa_ctl ] && (message="  configuration: ./.wpa_ctl found."; log-dbg)
+	    print_configuration
 	    ;;
 	-s|--silent)
 	    verbose=0
@@ -178,35 +233,13 @@ for i in "$@"; do
 	    ;;
 	-a|--all)
 	    for interface in $interfaces; do
-		case $action in
-		    init)
-			interface_initialize
-			;;
-		    kill)
-			interface_kill
-			;;
-		    *)
-			message="  Unknown action: $action"; log-err
-			exit -1
-			;;
-		esac
+		interface_control
 	    done
 	    ;;
 	*)
 	    if [[ $interfaces =~ $i ]]; then
 		interface=$i
-		case $action in
-		    init)
-			interface_initialize
-			;;
-		    kill)
-			interface_kill
-			;;
-		    *)
-			message="  Unknown action: $action"; log-err
-			exit -1
-			;;
-		esac
+		interface_control
 	    else
 		message="  Unknown interface: $i"; log-err
 	    fi
