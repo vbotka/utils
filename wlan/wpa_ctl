@@ -4,14 +4,15 @@
 # All rights reserved (c) 2019, Vladimir Botka <vbotka@gmail.com>
 # Simplified BSD License, https://opensource.org/licenses/BSD-2-Clause
 
-version="1.3.0"
+version="1.4.0"
 
 # Usage
 usage="$(basename "$0") ver $version
 
 Usage:
   $(basename "$0") [-h|--help] [-V|--version] [-i|--info] [-l|--list]
-          [-s|--silent] [-d|--debug] [-a|--all|<interface>]
+          [-s|--silent] [-d|--debug]
+          [[-k|--kill] -a|--all|<interface>]
           -- Control wireless interface
 Where:
           -h  --help ....... show this help and exit
@@ -44,14 +45,17 @@ wpa_action=/root/bin/wpa_action.sh
 wpa_gui=/usr/sbin/wpa_gui
 pkill=/usr/bin/pkill
 nohup=/usr/bin/nohup
+ip=/usr/sbin/ip
 pid_path=/var/run
 ctrl_interface=/var/run/wpa_supplicant
-logfile="/var/log/wpa_ctl"   # Path to logile
-logtofile=1                  # Send messages to the logfile
-debug=0                      # Print debug messages
-verbose=1                    # Print messages to the standard output
-wpa_gui_enable=0             # Start wpa_gui for each interface
-wpa_gui_user=$SUDO_USER      # User running wpa_gui
+logfile="/var/log/wpa_ctl"                  # Path to logile
+logtofile=1                                 # Send messages to the logfile
+debug=0                                     # Print debug messages
+verbose=1                                   # Print messages to the standard output
+wpa_gui_enable=0                            # Start wpa_gui for each interface
+wpa_gui_user=$SUDO_USER                     # User running wpa_gui
+xdg_runtime_dir_create=0                    # Create xdg_runtime_dir
+xdg_runtime_dir=/tmp/runtime-$wpa_gui_user  # Path to xdg_runtime_dir
 
 # Logging
 function log-ok {
@@ -105,6 +109,8 @@ function print_configuration {
     message="  verbose: $verbose"; log-ok
     message="  wpa_gui_enable: $wpa_gui_enable"; log-ok
     message="  wpa_gui_user: $wpa_gui_user"; log-ok
+    message="  xdg_runtime_dir_create: $xdg_runtime_dir_create"; log-ok
+    message="  xdg_runtime_dir: $xdg_runtime_dir"; log-ok
 }
 
 # Initialize interface
@@ -134,6 +140,7 @@ function interface_initialize {
 	fi
     fi
 
+    (($xdg_runtime_dir_create)) && create_xdg_runtime_dir
     (($wpa_gui_enable)) && wpa_gui_start
 }
 
@@ -149,21 +156,43 @@ function wpa_gui_start {
     fi
 }
 
+function create_xdg_runtime_dir {
+    if [ -d $xdg_runtime_dir ]; then
+	message="  $xdg_runtime_dir exists"; log-ok
+    else
+	if log=$(su $wpa_gui_user -c "mkdir $xdg_runtime_dir; chmod 0700 $xdg_runtime_dir"); then
+	    message="  $xdg_runtime_dir created"; log-ok
+	else
+	    message="  Can not create $xdg_runtime_dir: \n$log"; log-err
+	fi
+    fi
+}
+
+# Set interface down
+function interface_down {
+    if log=$($ip link set $interface down 2>&1); then
+	    message="  $interface set down"; log-ok
+	else
+	    message="  Failed to set $interface down: \n$log"; log-err
+    fi
+}
+
 # Kill interface
 function interface_kill {
-    if [ ! -S $ctrl_interface/$interface ]; then
-	message="  wpa_supplicant is not running on $interface"; log-ok
-    else
+    interface_down
+    if [ -S $ctrl_interface/$interface ]; then
 	if log=$($pkill -F$pid_path/wpa_supplicant.$interface.pid 2>&1); then
 	    message="  wpa_supplicant on $interface terminated"; log-ok
 	else
 	    message="  wpa_supplicant failed to terminate on $interface: \n$log"; log-err
 	fi
+    else
+	message="  wpa_supplicant is not running on $interface"; log-ok
     fi
 
     if log=$(ps ax | grep $interface | grep wpa_cli 2>&1); then
 	if log=$($pkill -F$pid_path/wpa_cli.$interface.pid 2>&1); then
-	    message="  wpa_cli started on $interface terminated"; log-ok
+	    message="  wpa_cli on $interface terminated"; log-ok
 	else
 	    message="  wpa_cli failed to terminate on $interface: \n$log"; log-err
 	fi
